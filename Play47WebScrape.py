@@ -15,7 +15,13 @@ load_dotenv()
 
 # Telegram Bot Configuration
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
+# Hardcoded Chat IDs (add as many as needed)
+CHAT_IDS = {
+    os.getenv('TELEGRAM_CHAT_ID_1'),   # Replace with actual Chat ID 1
+    os.getenv('TELEGRAM_CHAT_ID_2'),   # Replace with actual Chat ID 2
+    os.getenv('TELEGRAM_CHAT_ID_3'),   # Replace with actual Chat ID 3
+}
 
 # URL Configuration
 LOGIN_URL = 'https://reports.play47.com/'
@@ -33,11 +39,15 @@ bot = Bot(token=TELEGRAM_TOKEN)
 # Start a session
 session = requests.Session()
 
-# Send Telegram Notification
+# Send Telegram Notification to All Chat IDs
 async def send_telegram_notification(message):
     try:
-        print(f"Sending message: {message}")
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        if CHAT_IDS:
+            for chat_id in CHAT_IDS:
+                print(f"Sending message to {chat_id}: {message}")
+                await bot.send_message(chat_id=chat_id, text=message)
+        else:
+            print("No registered users to notify.")
     except Exception as e:
         print(f"Error sending message: {e}")
 
@@ -150,9 +160,18 @@ async def monitor_tickets():
 
         await asyncio.sleep(REFRESH_INTERVAL)
 
-if __name__ == '__main__':
-    asyncio.run(monitor_tickets())
+async def main():
+    # Start session check
+    session_check_task = asyncio.create_task(session_check())
 
+    # Start monitoring tickets
+    monitor_task = asyncio.create_task(monitor_tickets())
+
+    # Wait for both tasks to complete
+    await asyncio.gather(session_check_task, monitor_task)
+
+if __name__ == '__main__':
+    asyncio.run(main())
 
 
 
