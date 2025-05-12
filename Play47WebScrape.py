@@ -1,9 +1,11 @@
+from tkinter import CURRENT
 import requests
 from bs4 import BeautifulSoup
 import time
 import asyncio
 from dotenv import load_dotenv
 import os
+from asyncio import Lock
 
 try:
     from telegram import Bot
@@ -33,6 +35,13 @@ RELOGIN_INTERVAL = 600  # 10 minutes
 USERNAME = 'alanrodma'
 PASSWORD = 'alanrod'
 
+detectedTicketCount = 0
+# Global ticket set to track previously detected tickets
+previous_tickets = set()
+notified_tickets = set()
+
+tickets_lock = Lock()
+
 # Initialize Telegram Bot
 bot = Bot(token=TELEGRAM_TOKEN)
 
@@ -46,6 +55,7 @@ async def send_telegram_notification(message):
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
                 await bot.send_message(chat_id=chat_id, text=message)
+                detectedTicketCount = 0
         else:
             print("No registered users to notify.")
     except Exception as e:
@@ -82,6 +92,8 @@ async def login_to_site(retry_count=3):
 # Fetch Ticket Numbers
 async def get_ticket_numbers():
     try:
+        player_name = extract_player_name()
+
         response = session.get(TARGET_URL)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -91,14 +103,15 @@ async def get_ticket_numbers():
 
         for bet in bet_elements:
             text_content = bet.get_text(separator='|', strip=True)
+
             if 'STRAIGHT BET' in text_content:
                 # Extract the description after STRAIGHT BET
                 parts = text_content.split('|')
                 if len(parts) > 1:
                     description = parts[1].strip()
-                    bet_info = f"STRAIGHT BET - {description}"
+                    bet_info = f"Player: {player_name} - STRAIGHT BET - {description}"
                 else:
-                    bet_info = "STRAIGHT BET - No description found"
+                    bet_info = f"Player: {player_name} - STRAIGHT BET - No description found"
 
                 straight_bets.add(bet_info)
 
@@ -107,72 +120,124 @@ async def get_ticket_numbers():
         print(f"Error fetching STRAIGHT BETs: {e}")
         return set()
 
+# Extract player name
+def extract_player_name():
+    player_name_extract = set()
+    try:
+        response = session.get(TARGET_URL)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Locate all <player> tags
+        player_elements = soup.select('span.notation')
+
+        for player_element in player_elements:
+            # Extract the player name
+            player_name = player_element.get_text(strip=True)
+
+            # Construct the info
+            bet_info = f"Player: {player_name}"
+            player_name_extract.add(bet_info)
+
+        return player_name_extract
+
+    except Exception as e:
+        print(f"Error fetching Player Name: {e}")
+        return set()
+
+
 # Check session status
 async def session_check():
-    while True:
-        try:
-            response = session.get(TARGET_URL)
-            if "loginForm" in response.text.lower():
-                print("Session expired. Re-logging in...")
-                await send_telegram_notification("Session expired. Re-logging in...")
-                await login_to_site()
-            else:
-                print("Session is still active.")
-
-        except Exception as e:
-            print(f"Error in session check: {e}")
-            await send_telegram_notification(f"Error in session check: {e}")
-
-        await asyncio.sleep(RELOGIN_INTERVAL)
+    try:
+        response = session.get(TARGET_URL)
+        if "loginForm" in response.text.lower():
+            print("Session expired. Re-logging in...")
+            await send_telegram_notification("Session expired. Re-logging in...")
+            await login_to_site()
+        else:
+            print("Session is still active.")
+    except Exception as e:
+        print(f"Error in session check: {e}")
+        await send_telegram_notification(f"Error in session check: {e}")
 
 # Monitor for New Tickets
 async def monitor_tickets():
+    global detectedTicketCount
+    global previous_tickets
+    global notified_tickets
+    global tickets_lock
+
     error_count = 0
     max_errors = 10
     retry_delay = 10  # seconds
-    previous_tickets = set()
 
-    await login_to_site()
+    try:
+        current_tickets = set(await get_ticket_numbers())
 
-    while True:
-        try:
-            current_tickets = set(await get_ticket_numbers())
-            print(f"Detected tickets: {current_tickets}")
+        async with tickets_lock:
+            if detectedTicketCount == 0:
+                print(f"Detected tickets: {current_tickets}")
+                detectedTicketCount = 1
+        
             new_tickets = current_tickets - previous_tickets
 
             for ticket in new_tickets:
                 if ticket not in previous_tickets:
                     await send_telegram_notification(f"New Ticket Detected: {ticket}")
+                    notified_tickets.add(ticket)
 
+            # Update previous_tickets after processing
             previous_tickets = current_tickets
+
             error_count = 0  # Reset error count after successful run
 
-        except Exception as e:
-            print(f"Error in ticket monitoring: {e}")
-            error_count += 1
-            if error_count <= max_errors:
-                await send_telegram_notification("Error in ticket monitoring. Attempting re-login...")
-            elif error_count > max_errors:
-                print("Error notification limit reached. Not sending further error notifications.")
+    except Exception as e:
+        print(f"Error in ticket monitoring: {e}")
+        error_count += 1
+        if error_count <= max_errors:
+            await send_telegram_notification("Error in ticket monitoring. Attempting re-login...")
+        elif error_count > max_errors:
+            print("Error notification limit reached. Not sending further error notifications.")
 
-            await asyncio.sleep(retry_delay)
-            await login_to_site()
-
-        await asyncio.sleep(REFRESH_INTERVAL)
+        await asyncio.sleep(retry_delay)
+        await login_to_site()
 
 async def main():
-    # Start session check
-    session_check_task = asyncio.create_task(session_check())
+    global previous_tickets
 
-    # Start monitoring tickets
-    monitor_task = asyncio.create_task(monitor_tickets())
+    RESTART_INTERVAL = 20  # 12 hours in seconds
+    REFRESH_INTERVAL = 10  # 10 seconds
 
-    # Wait for both tasks to complete
-    await asyncio.gather(session_check_task, monitor_task)
+    while True:
+        # Login before starting the main tasks
+        await login_to_site()
+
+        start_time = time.time()
+
+        while time.time() - start_time < RESTART_INTERVAL:
+            try:
+                tasks = [
+                    asyncio.create_task(session_check()),
+                    asyncio.create_task(monitor_tickets())
+                ]
+
+                # Wait for tasks to complete
+                await asyncio.gather(*tasks)
+                await asyncio.sleep(REFRESH_INTERVAL)
+
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                await send_telegram_notification(f"Error in main loop: {e}")
+
+        # Reset the global ticket set after the 12-hour interval
+        print(f"Restarting tasks after 12 hours. Resetting ticket set...")
+        async with tickets_lock:
+            previous_tickets.clear()
+            notified_tickets.clear()
+            detectedTicketCount = 0
 
 if __name__ == '__main__':
     asyncio.run(main())
-
 
 
 
