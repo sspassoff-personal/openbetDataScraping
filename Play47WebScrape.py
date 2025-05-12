@@ -54,7 +54,7 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                await bot.send_message(chat_id=chat_id, text=message)
+               # await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
         else:
             print("No registered users to notify.")
@@ -205,7 +205,7 @@ async def monitor_tickets():
 async def main():
     global previous_tickets
 
-    RESTART_INTERVAL = 20  # 12 hours in seconds
+    RESTART_INTERVAL = 20 * 60 * 60  # 12 hours in seconds
     REFRESH_INTERVAL = 10  # 10 seconds
 
     while True:
