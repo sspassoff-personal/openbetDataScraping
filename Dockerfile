@@ -16,9 +16,6 @@ RUN apt-get update && \
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN python -m playwright install
-
 # Expose a port (optional, useful for debugging or monitoring)
 EXPOSE 8080
 
