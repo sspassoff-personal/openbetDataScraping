@@ -5,6 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 import os
 from asyncio import Lock
+import threading
 
 try:
     from telegram import Bot
@@ -73,7 +74,7 @@ async def login_to_site(retry_count=3):
 
         if 'logout' in response.text.lower() or 'dashboard' in response.text.lower():
             print("Login successful")
-            await send_telegram_notification("Login successful to Play47")
+            #await send_telegram_notification("Login successful to Play47")
         else:
             print("Login failed. Check credentials or login payload.")
             await send_telegram_notification("Login attempt failed to Play47")
@@ -90,34 +91,41 @@ async def login_to_site(retry_count=3):
 
 # Fetch Ticket Numbers
 async def get_ticket_numbers():
-    try:
-        player_name = extract_player_name()
+    player_bets = []
+    current_player = None
 
+    try:
         response = session.get(TARGET_URL)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
 
-        straight_bets = set()
-        bet_elements = soup.select('td.define-height-td')
+        # Select all rows
+        rows = soup.select('tr')
 
-        for bet in bet_elements:
-            text_content = bet.get_text(separator='|', strip=True)
+        for row in rows:
+            # Check for player name using span.notation
+            player_element = row.select_one('span.notation')
+            if player_element:
+                # Update the current player when a new player is found
+                current_player = player_element.get_text(strip=True)
+                continue  # Move to the next iteration to avoid associating the player tag with a bet description
 
-            if 'STRAIGHT BET' in text_content:
-                # Extract the description after STRAIGHT BET
-                parts = text_content.split('|')
-                if len(parts) > 1:
-                    description = parts[1].strip()
-                    bet_info = f"Player: {player_name} - STRAIGHT BET - {description}"
-                else:
-                    bet_info = f"Player: {player_name} - STRAIGHT BET - No description found"
+            # Extract bet description for the current player
+            if current_player:
+                bet_element = row.select_one('td.define-height-td')
+                if bet_element:
+                    # Extract the description after <br> tag
+                    br_tag = bet_element.find('br')
+                    if br_tag and br_tag.next_sibling:
+                        description = br_tag.next_sibling.strip()
+                        bet_info = f"Player: {current_player} - STRAIGHT BET - {description}"
+                        player_bets.append(bet_info)
 
-                straight_bets.add(bet_info)
+        return player_bets
 
-        return straight_bets
     except Exception as e:
-        print(f"Error fetching STRAIGHT BETs: {e}")
-        return set()
+        print(f"Error extracting player bets: {e}")
+        return []
 
 # Extract player name
 def extract_player_name():
@@ -166,47 +174,43 @@ async def monitor_tickets():
     global notified_tickets
     global tickets_lock
 
-    error_count = 0
-    max_errors = 10
-    retry_delay = 10  # seconds
+    async with tickets_lock:
+        error_count = 0
+        max_errors = 10
+        retry_delay = 10  # seconds
 
-    try:
-        current_tickets = set(await get_ticket_numbers())
-
-        async with tickets_lock:
+    
+        try:
+            current_tickets = set(await get_ticket_numbers())
             if detectedTicketCount == 0:
                 print(f"Detected tickets: {current_tickets}")
                 detectedTicketCount = 1
         
-            new_tickets = current_tickets - previous_tickets
+                new_tickets = current_tickets - previous_tickets
 
-            for ticket in new_tickets:
-                if ticket not in previous_tickets:
-                    await send_telegram_notification(f"New Ticket Detected: {ticket}")
-                    notified_tickets.add(ticket)
+                for ticket in new_tickets:
+                    if ticket not in previous_tickets:
+                        await send_telegram_notification(f"New Ticket Detected: {ticket}")
+                        notified_tickets.add(ticket)
 
-            # Update previous_tickets after processing
-            previous_tickets = current_tickets
+                # Update previous_tickets after processing
+                previous_tickets = current_tickets
 
-            error_count = 0  # Reset error count after successful run
+                error_count = 0  # Reset error count after successful run
 
-    except Exception as e:
-        print(f"Error in ticket monitoring: {e}")
-        error_count += 1
-        if error_count <= max_errors:
-            await send_telegram_notification("Error in ticket monitoring. Attempting re-login...")
-        elif error_count > max_errors:
-            print("Error notification limit reached. Not sending further error notifications.")
+        except Exception as e:
+            print(f"Error in ticket monitoring: {e}")
+            error_count += 1
+            if error_count <= max_errors:
+                await send_telegram_notification("Error in ticket monitoring. Attempting re-login...")
+            elif error_count > max_errors:
+                print("Error notification limit reached. Not sending further error notifications.")
 
         await asyncio.sleep(retry_delay)
         await login_to_site()
 
-async def main():
-    global previous_tickets
-
-    RESTART_INTERVAL = 20 * 60 * 60  # 12 hours in seconds
-    REFRESH_INTERVAL = 10  # 10 seconds
-
+async def start_monitor_thread():
+    RESTART_INTERVAL = 1500 # 25 Minute Restart
     while True:
         # Login before starting the main tasks
         await login_to_site()
@@ -228,12 +232,32 @@ async def main():
                 print(f"Error in main loop: {e}")
                 await send_telegram_notification(f"Error in main loop: {e}")
 
-        # Reset the global ticket set after the 12-hour interval
-        print(f"Restarting tasks after 12 hours. Resetting ticket set...")
-        async with tickets_lock:
+
+def monitor_thread():
+    asyncio.run(start_monitor_thread())
+
+def reset_thread():
+    global previous_tickets, notified_tickets, detectedTicketCount
+    while True:
+        time.sleep(12 * 60 * 60)  # Sleep for 12 hours
+        with tickets_lock:
             previous_tickets.clear()
             notified_tickets.clear()
             detectedTicketCount = 0
+            print("Ticket data has been reset.")
+
+async def main():
+    # Create threads
+    t1 = threading.Thread(target=monitor_thread, daemon=True)
+    t2 = threading.Thread(target=reset_thread, daemon=True)
+
+    # Start threads
+    t1.start()
+    t2.start()
+
+    # Keep the main thread alive
+    t1.join()
+    t2.join()
 
 if __name__ == '__main__':
     asyncio.run(main())
