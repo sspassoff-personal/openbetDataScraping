@@ -54,7 +54,7 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                await bot.send_message(chat_id=chat_id, text=message)
+                #await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
         else:
             print("No registered users to notify.")
@@ -177,7 +177,7 @@ async def monitor_tickets():
     async with tickets_lock:
         error_count = 0
         max_errors = 10
-        retry_delay = 10  # seconds
+        retry_delay = 5  # seconds
         try:
             current_tickets = set(await get_ticket_numbers())
             if detectedTicketCount == 0:
@@ -185,9 +185,9 @@ async def monitor_tickets():
                 detectedTicketCount = 1
         
                 new_tickets = current_tickets - previous_tickets
-
+                
                 for ticket in new_tickets:
-                    if ticket not in previous_tickets:
+                    if ticket not in notified_tickets:
                         await send_telegram_notification(f"New Ticket Detected: {ticket}")
                         notified_tickets.add(ticket)
 
@@ -205,23 +205,23 @@ async def monitor_tickets():
                 print("Error notification limit reached. Not sending further error notifications.")
 
         await asyncio.sleep(retry_delay)
-        await login_to_site()
 
 async def start_monitor_thread():
-    RESTART_INTERVAL = 1500 # 25 Minute Restart
+    RESTART_INTERVAL = 60 # 25 Minute Restart
     while True:
         # Login before starting the main tasks
         await login_to_site()
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
-        while time.time() - start_time < RESTART_INTERVAL:
+        while time.monotonic() - start_time < RESTART_INTERVAL:
             try:
                 tasks = [
                     asyncio.create_task(session_check()),
                     asyncio.create_task(monitor_tickets())
                 ]
-
+                print("Running")
+                detectedTicketCount = 0
                 # Wait for tasks to complete
                 await asyncio.gather(*tasks)
                 await asyncio.sleep(REFRESH_INTERVAL)
