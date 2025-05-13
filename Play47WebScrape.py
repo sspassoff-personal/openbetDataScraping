@@ -54,7 +54,7 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                await bot.send_message(chat_id=chat_id, text=message)
+                #await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
         else:
             print("No registered users to notify.")
@@ -178,8 +178,6 @@ async def monitor_tickets():
         error_count = 0
         max_errors = 10
         retry_delay = 10  # seconds
-
-    
         try:
             current_tickets = set(await get_ticket_numbers())
             if detectedTicketCount == 0:
@@ -240,11 +238,10 @@ def reset_thread():
     global previous_tickets, notified_tickets, detectedTicketCount
     while True:
         time.sleep(12 * 60 * 60)  # Sleep for 12 hours
-        with tickets_lock:
-            previous_tickets.clear()
-            notified_tickets.clear()
-            detectedTicketCount = 0
-            print("Ticket data has been reset.")
+        previous_tickets.clear()
+        notified_tickets.clear()
+        detectedTicketCount = 0
+        print("Ticket data has been reset.")
 
 async def main():
     # Create threads
