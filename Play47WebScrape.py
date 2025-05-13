@@ -184,12 +184,12 @@ async def monitor_tickets():
                 print(f"Detected tickets: {current_tickets}")
                 detectedTicketCount = 1
         
-                new_tickets = current_tickets - previous_tickets
+            new_tickets = current_tickets - previous_tickets
                 
-                for ticket in new_tickets:
-                    if ticket not in notified_tickets:
-                        await send_telegram_notification(f"New Ticket Detected: {ticket}")
-                        notified_tickets.add(ticket)
+            for ticket in new_tickets:
+                if ticket not in notified_tickets:
+                    await send_telegram_notification(f"New Ticket Detected: {ticket}")
+                    notified_tickets.add(ticket)
 
                 # Update previous_tickets after processing
                 previous_tickets = current_tickets
