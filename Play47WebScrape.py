@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 from bs4 import BeautifulSoup
 import time
 import asyncio
@@ -31,7 +31,7 @@ TARGET_URL = 'https://reports.play47.com/Report/OpenBets.aspx'
 REFRESH_INTERVAL = 10  # seconds
 RELOGIN_INTERVAL = 600  # 10 minutes
 
-# Credentials
+# Credentials Play47
 USERNAME = 'alanrodma'
 PASSWORD = 'alanrod'
 
@@ -188,7 +188,7 @@ async def monitor_tickets():
                 
             for ticket in new_tickets:
                 if ticket not in notified_tickets:
-                    await send_telegram_notification(f"New Ticket Detected: {ticket}")
+                    await send_telegram_notification(f"🎫 New Ticket Detected: {ticket}")
                     notified_tickets.add(ticket)
 
                 # Update previous_tickets after processing
