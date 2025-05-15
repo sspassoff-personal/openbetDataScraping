@@ -55,7 +55,7 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                #await bot.send_message(chat_id=chat_id, text=message)
+                await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
         else:
             print("No registered users to notify.")
