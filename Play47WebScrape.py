@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import os
 from asyncio import Lock
 import threading
+from datetime import datetime, time as dt_time, timedelta
+from zoneinfo import ZoneInfo
 
 try:
     from telegram import Bot
@@ -45,6 +47,9 @@ tickets_lock = Lock()
 # Initialize Telegram Bot
 bot = Bot(token=TELEGRAM_TOKEN)
 
+# PST timezone
+PST = ZoneInfo("America/Los_Angeles")
+
 # Start a session
 session = requests.Session()
 
@@ -60,6 +65,22 @@ async def send_telegram_notification(message):
             print("No registered users to notify.")
     except Exception as e:
         print(f"Error sending message: {e}")
+
+def sleep_quiet_hours():
+    """Sleep until 8 AM PST if now is between 10 PM–8 AM PST."""
+    now = datetime.now(PST)
+    if now.time() >= dt_time(22) or now.time() < dt_time(8):
+        # next wake at 8 AM PST
+        if now.time() >= dt_time(22):
+            next_wake = (now + timedelta(days=1)).replace(
+                hour=8, minute=0, second=0, microsecond=0
+            )
+        else:
+            next_wake = now.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        delta = (next_wake - now).total_seconds()
+        print(f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
+        time.sleep(delta)
 
 # Login to the site
 async def login_to_site(retry_count=3):
@@ -209,6 +230,7 @@ async def monitor_tickets():
 async def start_monitor_thread():
     RESTART_INTERVAL = 60 # 25 Minute Restart
     while True:
+        sleep_quiet_hours()
         # Login before starting the main tasks
         await login_to_site()
 
