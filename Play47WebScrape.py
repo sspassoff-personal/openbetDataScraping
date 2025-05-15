@@ -55,7 +55,7 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                await bot.send_message(chat_id=chat_id, text=message)
+                #await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
         else:
             print("No registered users to notify.")
@@ -75,7 +75,7 @@ async def sleep_quiet_hours():
             next_wake = now.replace(hour=8, minute=0, second=0, microsecond=0)
 
         delta = (next_wake - now).total_seconds()
-        message = "🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s"
+        message = (f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
         await send_telegram_notification(message)
         print(f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
         time.sleep(delta)
