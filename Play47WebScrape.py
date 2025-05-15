@@ -7,7 +7,6 @@ import os
 from asyncio import Lock
 import threading
 from datetime import datetime, time as dt_time, timedelta
-from zoneinfo import ZoneInfo
 
 try:
     from telegram import Bot
@@ -47,9 +46,6 @@ tickets_lock = Lock()
 # Initialize Telegram Bot
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# PST timezone
-PST = ZoneInfo("America/Los_Angeles")
-
 # Start a session
 session = requests.Session()
 
@@ -66,9 +62,9 @@ async def send_telegram_notification(message):
     except Exception as e:
         print(f"Error sending message: {e}")
 
-def sleep_quiet_hours():
-    """Sleep until 8 AM PST if now is between 10 PM–8 AM PST."""
-    now = datetime.now(PST)
+async def sleep_quiet_hours():
+    # get current Los Angeles time by taking UTC and subtracting 7 hours (PDT)
+    now = datetime.utcnow() - timedelta(hours=7)
     if now.time() >= dt_time(22) or now.time() < dt_time(8):
         # next wake at 8 AM PST
         if now.time() >= dt_time(22):
@@ -79,6 +75,8 @@ def sleep_quiet_hours():
             next_wake = now.replace(hour=8, minute=0, second=0, microsecond=0)
 
         delta = (next_wake - now).total_seconds()
+        message = "🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s"
+        await send_telegram_notification(message)
         print(f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
         time.sleep(delta)
 
@@ -230,7 +228,7 @@ async def monitor_tickets():
 async def start_monitor_thread():
     RESTART_INTERVAL = 60 # 25 Minute Restart
     while True:
-        sleep_quiet_hours()
+        await sleep_quiet_hours()
         # Login before starting the main tasks
         await login_to_site()
 
