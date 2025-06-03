@@ -184,7 +184,7 @@ async def session_check():
             print("Session is still active.")
     except Exception as e:
         print(f"Error in session check: {e}")
-        await send_telegram_notification(f"Error in session check: {e}")
+        #await send_telegram_notification(f"Error in session check: {e}")
 
 # Monitor for New Tickets
 async def monitor_tickets():
@@ -226,7 +226,7 @@ async def monitor_tickets():
         await asyncio.sleep(retry_delay)
 
 async def start_monitor_thread():
-    RESTART_INTERVAL = 60 # 25 Minute Restart
+    RESTART_INTERVAL = 60 
     while True:
         await sleep_quiet_hours()
         # Login before starting the main tasks
