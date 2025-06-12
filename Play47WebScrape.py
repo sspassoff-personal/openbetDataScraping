@@ -76,7 +76,7 @@ async def sleep_quiet_hours():
 
         delta = (next_wake - now).total_seconds()
         message = (f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
-        await send_telegram_notification(message)
+        #await send_telegram_notification(message)
         print(f"🔕 Quiet hours until {next_wake.strftime('%Y-%m-%d %H:%M:%S')} PST, sleeping {int(delta)}s")
         time.sleep(delta)
 
@@ -102,11 +102,12 @@ async def login_to_site(retry_count=3):
                 await asyncio.sleep(5)
                 await login_to_site(retry_count - 1)
             else:
-                await send_telegram_notification("Login failed after multiple attempts")
+                print("Login Failed")
+                #await send_telegram_notification("Login failed after multiple attempts")
 
     except Exception as e:
         print(f"Login error: {e}")
-        await send_telegram_notification(f"Login error: {e}")
+        #await send_telegram_notification(f"Login error: {e}")
 
 # Fetch Ticket Numbers
 async def get_ticket_numbers():
@@ -178,7 +179,7 @@ async def session_check():
         response = session.get(TARGET_URL)
         if "loginForm" in response.text.lower():
             print("Session expired. Re-logging in...")
-            await send_telegram_notification("Session expired. Re-logging in...")
+            #await send_telegram_notification("Session expired. Re-logging in...")
             await login_to_site()
         else:
             print("Session is still active.")
