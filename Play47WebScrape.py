@@ -258,7 +258,7 @@ def monitor_thread():
 def reset_thread():
     global previous_tickets, notified_tickets, detectedTicketCount
     while True:
-        time.sleep(12 * 60 * 60)  # Sleep for 12 hours
+        time.sleep(7 * 24 * 60 * 60)  # Sleep for 1 week
         previous_tickets.clear()
         notified_tickets.clear()
         detectedTicketCount = 0
