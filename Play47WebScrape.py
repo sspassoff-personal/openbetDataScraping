@@ -55,8 +55,20 @@ async def send_telegram_notification(message):
         if CHAT_IDS:
             for chat_id in CHAT_IDS:
                 print(f"Sending message to {chat_id}: {message}")
-                await bot.send_message(chat_id=chat_id, text=message)
+                #await bot.send_message(chat_id=chat_id, text=message)
                 detectedTicketCount = 0
+        else:
+            print("No registered users to notify.")
+    except Exception as e:
+        print(f"Error sending message: {e}")
+
+async def send_error(message):
+    try:
+        if CHAT_IDS:
+            for chat_id in CHAT_IDS:
+                if (chat_id == "6405488221"):
+                    print(f"Sending message to {chat_id}: {message}")
+                    await bot.send_message(chat_id=chat_id, text=message)
         else:
             print("No registered users to notify.")
     except Exception as e:
@@ -96,7 +108,7 @@ async def login_to_site(retry_count=3):
             #await send_telegram_notification("Login successful to Play47")
         else:
             print("Login failed. Check credentials or login payload.")
-            await send_telegram_notification("Login attempt failed to Play47")
+            await send_error("Login attempt failed to Play47")
             if retry_count > 0:
                 print("Retrying login...")
                 await asyncio.sleep(5)
@@ -220,7 +232,7 @@ async def monitor_tickets():
             print(f"Error in ticket monitoring: {e}")
             error_count += 1
             if error_count <= max_errors:
-                await send_telegram_notification("Error in ticket monitoring. Attempting re-login...")
+                await send_error("Error in ticket monitoring. Attempting re-login...")
             elif error_count > max_errors:
                 print("Error notification limit reached. Not sending further error notifications.")
 
@@ -242,6 +254,7 @@ async def start_monitor_thread():
                     asyncio.create_task(monitor_tickets())
                 ]
                 print("Running")
+                await send_error("Login attempt failed to Play47")
                 detectedTicketCount = 0
                 # Wait for tasks to complete
                 await asyncio.gather(*tasks)
@@ -249,7 +262,7 @@ async def start_monitor_thread():
 
             except Exception as e:
                 print(f"Error in main loop: {e}")
-                await send_telegram_notification(f"Error in main loop: {e}")
+                await send_error(f"Error in main loop: {e}")
 
 
 def monitor_thread():
