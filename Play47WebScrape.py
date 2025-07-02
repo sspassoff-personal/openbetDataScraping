@@ -254,7 +254,7 @@ async def start_monitor_thread():
                     asyncio.create_task(monitor_tickets())
                 ]
                 print("Running")
-                await send_error("Login attempt failed to Play47")
+                #await send_error("Login attempt failed to Play47")
                 detectedTicketCount = 0
                 # Wait for tasks to complete
                 await asyncio.gather(*tasks)
